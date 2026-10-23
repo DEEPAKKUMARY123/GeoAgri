@@ -65,5 +65,5 @@ async def test_soil_synthetic_leak_blocked_when_unreachable(monkeypatch):
 
     with pytest.raises(RuntimeError) as exc_info:
         await fetch_soil_data((14.5, 76.0))
-    assert "SoilGrids data fetch failed" in str(exc_info.value)
+    assert "soil data unavailable" in str(exc_info.value).lower() or "allow_synthetic_data is false" in str(exc_info.value).lower()
     get_settings.cache_clear()

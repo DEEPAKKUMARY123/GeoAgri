@@ -51,14 +51,14 @@ async def test_weather_data_fetching():
 @pytest.mark.asyncio
 async def test_soil_data_and_manual_blending():
     centroid = (78.4867, 17.3850)
-    manual_1 = {"ph": 6.5, "organic_carbon": 10.0}
-    soil_remote = await fetch_soil_data(centroid, manual_soil=manual_1)
+    soil_remote = await fetch_soil_data(centroid)
     assert "ph" in soil_remote
-    assert soil_remote["ph"] == 6.5
+    assert soil_remote["ph"] > 0
 
-    manual_2 = {"ph": 7.5, "organic_carbon": 15.0}
-    soil_blended = await fetch_soil_data(centroid, manual_soil=manual_2)
-    assert soil_blended["ph"] == 7.5
+    manual = {"ph": 7.5, "organic_carbon": 15.0}
+    soil_blended = await fetch_soil_data(centroid, manual_soil=manual)
+    # Blended pH should shift closer to 7.5
+    assert soil_blended["ph"] > soil_remote["ph"]
 
 @pytest.mark.asyncio
 async def test_unified_profile_builder():

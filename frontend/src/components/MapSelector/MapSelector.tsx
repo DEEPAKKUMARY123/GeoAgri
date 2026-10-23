@@ -52,13 +52,13 @@ export const PRESET_REGIONS = [
   },
   {
     name: "Nile Delta, Egypt (Cotton / Wheat / Rice / Maize)",
-    centroid: [31.2500, 30.7500] as [number, number],
+    centroid: [31.8921, 30.6177] as [number, number],
     polygon: [
-      [31.2450, 30.7460],
-      [31.2550, 30.7460],
-      [31.2550, 30.7540],
-      [31.2450, 30.7540],
-      [31.2450, 30.7460]
+      [31.8871, 30.6137],
+      [31.8971, 30.6137],
+      [31.8971, 30.6217],
+      [31.8871, 30.6217],
+      [31.8871, 30.6137]
     ] as [number, number][],
     defaultAreaHa: 3.20
   },
@@ -76,25 +76,25 @@ export const PRESET_REGIONS = [
   },
   {
     name: "Rajasthan Field, India (Pearl Millet / Mustard / Guar)",
-    centroid: [73.0243, 26.2389] as [number, number],
+    centroid: [73.3000, 26.4500] as [number, number],
     polygon: [
-      [73.0200, 26.2350],
-      [73.0280, 26.2350],
-      [73.0280, 26.2420],
-      [73.0200, 26.2420],
-      [73.0200, 26.2350]
+      [73.2957, 26.4461],
+      [73.3037, 26.4461],
+      [73.3037, 26.4531],
+      [73.2957, 26.4531],
+      [73.2957, 26.4461]
     ] as [number, number][],
     defaultAreaHa: 4.10
   },
   {
     name: "Punjab Field, India (Wheat / Paddy / Mustard)",
-    centroid: [75.8573, 30.9010] as [number, number],
+    centroid: [75.4987, 30.7512] as [number, number],
     polygon: [
-      [75.8550, 30.9000],
-      [75.8600, 30.9000],
-      [75.8600, 30.9040],
-      [75.8550, 30.9040],
-      [75.8550, 30.9000]
+      [75.4964, 30.7502],
+      [75.5014, 30.7502],
+      [75.5014, 30.7542],
+      [75.4964, 30.7542],
+      [75.4964, 30.7502]
     ] as [number, number][],
     defaultAreaHa: 3.42
   }

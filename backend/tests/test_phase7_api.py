@@ -17,7 +17,12 @@ def test_health_endpoint():
     response = client.get("/api/v1/health")
     assert response.status_code == 200
     data = response.json()
-    assert data["status"] == "healthy"
+    assert data["status"] in ["healthy", "degraded"]
+    assert "services" in data
+    assert "google_earth_engine" in data["services"]
+    assert "database" in data["services"]
+    assert "layers" in data
+    assert "allow_synthetic_data" in data
 
 def test_crops_list_endpoint():
     response = client.get("/api/v1/crops")

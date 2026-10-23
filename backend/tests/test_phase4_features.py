@@ -25,7 +25,8 @@ async def test_feature_vector_extraction():
         (78.4850, 17.3870),
         (78.4850, 17.3850)
     ]
-    profile = await build_environmental_profile(polygon, None, season="kharif")
+    manual_soil = {"ph": 6.8, "organic_carbon": 12.0}
+    profile = await build_environmental_profile(polygon, None, season="kharif", manual_soil=manual_soil)
     pipeline = get_feature_pipeline()
     vector = pipeline.extract_feature_vector(profile)
 

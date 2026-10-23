@@ -15,37 +15,20 @@ def fetch_satellite_features(polygon_pts: list[tuple[float, float]] | None, cent
     Returns a dict of 34 base satellite and terrain features:
     25 Sentinel-2 + 4 Sentinel-1 + 5 SRTM features.
     """
-    mock_fallback = os.getenv("GEE_MOCK_FALLBACK", "true").lower() == "true"
+    from app.core.config import get_settings
+    settings = get_settings()
+    mock_fallback = settings.GEE_MOCK_FALLBACK and settings.is_synthetic_allowed()
     lon, lat = centroid
 
     # Attempt live GEE call if enabled
     if not mock_fallback:
         try:
             import ee
-            # Initialize if needed
-            if not ee.data._credentials:
-                import json
-                account = os.getenv("GEE_SERVICE_ACCOUNT", "")
-                key_path = os.getenv("GEE_PRIVATE_KEY_PATH", "")
-                project_id = os.getenv("GEE_PROJECT_ID", "")
-                if not project_id and key_path and os.path.exists(key_path):
-                    try:
-                        with open(key_path) as f:
-                            project_id = json.load(f).get("project_id", "")
-                    except Exception:
-                        pass
-
-                if account and key_path and os.path.exists(key_path):
-                    credentials = ee.ServiceAccountCredentials(account, key_path)
-                    if project_id:
-                        ee.Initialize(credentials, project=project_id)
-                    else:
-                        ee.Initialize(credentials)
-                else:
-                    if project_id:
-                        ee.Initialize(project=project_id)
-                    else:
-                        ee.Initialize()
+            if not ee.data.is_initialized():
+                from app.services.geo.gee_test import test_gee_connection
+                init_res = test_gee_connection()
+                if init_res["status"] != "connected":
+                    raise RuntimeError(f"GEE initialization failed: {init_res.get('message')}")
 
             # Define GEE geometry
             gee_poly = ee.Geometry.Polygon(polygon_pts) if polygon_pts else ee.Geometry.Point([lon, lat]).buffer(100)
@@ -100,11 +83,17 @@ def fetch_satellite_features(polygon_pts: list[tuple[float, float]] | None, cent
                 "ndsi": -0.20,
                 "b1": 0.04, "b2": 0.05, "b3": 0.08, "b4": 0.06, "b5": 0.12,
                 "b6": 0.22, "b7": 0.28, "b8": 0.31, "b8a": 0.33, "b9": 0.10,
-                "b11": 0.18, "b12": 0.11,
+                "b10": 0.012, "b11": 0.18, "b12": 0.11,
+                "b8_mean": 0.310, "b8_std": 0.025, "b4_mean": 0.055, "b4_std": 0.008,
                 "vv": -11.5, "vh": -17.2, "vv_vh_ratio": 0.67, "rvi": 0.48
             }
-        except Exception:
-            pass  # Fall through to synthetic mock
+        except Exception as e:
+            if not settings.is_synthetic_allowed():
+                raise RuntimeError(f"Live GEE satellite extraction failed: {str(e)}") from e
+            pass  # Fall through to synthetic mock only if explicitly allowed
+
+    if not settings.is_synthetic_allowed():
+        raise RuntimeError("Synthetic satellite data requested, but ALLOW_SYNTHETIC_DATA is false.")
 
     # Deterministic synthetic mock based on lon/lat seed
     seed = int((abs(lat) * 1000 + abs(lon) * 100) % 10000)

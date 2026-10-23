@@ -2,11 +2,13 @@ FROM python:3.11-slim
 
 WORKDIR /app
 
-# Install system dependencies for geospatial packages (e.g. GEOS, PROJ)
+# Install system dependencies for geospatial packages (e.g. GEOS, PROJ, GDAL)
 RUN apt-get update && apt-get install -y --no-install-recommends \
     build-essential \
     libgeos-dev \
     libproj-dev \
+    gdal-bin \
+    libgdal-dev \
     curl \
     && rm -rf /var/lib/apt/lists/*
 
@@ -22,7 +24,8 @@ WORKDIR /app/backend
 # Set Python path to ensure module imports resolve smoothly
 ENV PYTHONPATH=/app/backend
 ENV PORT=8000
-ENV GEE_MOCK_FALLBACK=true
+ENV GEE_MOCK_FALLBACK=false
+ENV ALLOW_SYNTHETIC_DATA=false
 
 EXPOSE 8000
 

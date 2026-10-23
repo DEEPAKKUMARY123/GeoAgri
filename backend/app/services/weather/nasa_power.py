@@ -76,8 +76,17 @@ async def fetch_weather_data(centroid: tuple[float, float], season: str = "khari
                 }
                 CACHE_WEATHER[cache_key] = result
                 return result
-    except Exception:
-        pass  # Fall through to synthetic weather profile
+    except Exception as e:
+        from app.core.config import get_settings
+        settings = get_settings()
+        if not settings.is_synthetic_allowed():
+            raise RuntimeError(f"NASA POWER weather data fetch failed: {str(e)}") from e
+        pass  # Fall through to synthetic weather profile only if explicitly allowed
+
+    from app.core.config import get_settings
+    settings = get_settings()
+    if not settings.is_synthetic_allowed():
+        raise RuntimeError("Synthetic weather data requested, but ALLOW_SYNTHETIC_DATA is false.")
 
     # Deterministic fallback weather profile
     seed = int((abs(lat) * 500 + abs(lon) * 50) % 10000)

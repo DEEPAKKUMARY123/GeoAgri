@@ -22,6 +22,22 @@ share/python-wheels/
 *.egg
 MANIFEST
 
+# External Datasets (PRD §6.4: commit only SOURCE.md and small samples)
+backend/ml/data/raw/external/**/*.zip
+backend/ml/data/raw/external/**/*.tif
+backend/ml/data/raw/external/**/*.tiff
+backend/ml/data/raw/external/**/*.parquet
+backend/ml/data/raw/external/**/*.csv.gz
+backend/ml/data/raw/external/**/*.shp
+backend/ml/data/raw/external/**/*.shx
+backend/ml/data/raw/external/**/*.dbf
+backend/ml/data/raw/external/**/*.prj
+backend/ml/data/raw/external/**/*.cpg
+backend/ml/data/raw/external/**/*.pbf
+backend/ml/data/raw/external/**/dataset-links.csv
+backend/ml/data/raw/external/**/*.part
+!backend/ml/data/raw/external/**/SOURCE.md
+
 # Virtual Environments
 .env
 .env.local

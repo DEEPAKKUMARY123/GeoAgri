@@ -1,4 +1,22 @@
 services:
+  db:
+    image: postgis/postgis:15-3.4
+    container_name: geoagri-postgis
+    environment:
+      POSTGRES_DB: geoagri
+      POSTGRES_USER: geoagri
+      POSTGRES_PASSWORD: geoagri
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgis_data:/var/lib/postgresql/data
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U geoagri -d geoagri"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
   backend:
     build:
       context: .
@@ -7,8 +25,14 @@ services:
     ports:
       - "8000:8000"
     environment:
-      - GEE_MOCK_FALLBACK=true
+      - ENV=development
+      - ALLOW_SYNTHETIC_DATA=false
+      - GEE_MOCK_FALLBACK=false
+      - DATABASE_URL=postgresql+psycopg://geoagri:geoagri@db:5432/geoagri
       - PORT=8000
+    depends_on:
+      db:
+        condition: service_healthy
     restart: unless-stopped
 
   frontend:
@@ -21,3 +45,6 @@ services:
     depends_on:
       - backend
     restart: unless-stopped
+
+volumes:
+  postgis_data:

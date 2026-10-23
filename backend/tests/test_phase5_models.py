@@ -16,7 +16,8 @@ async def test_parallel_model_execution_baseline():
         (78.4850, 17.3870),
         (78.4850, 17.3850)
     ]
-    profile = await build_environmental_profile(polygon, None, season="kharif")
+    manual_soil = {"ph": 6.8, "organic_carbon": 12.0}
+    profile = await build_environmental_profile(polygon, None, season="kharif", manual_soil=manual_soil)
     vector = get_feature_pipeline().extract_feature_vector(profile)
 
     registry = get_model_registry()
@@ -50,7 +51,8 @@ async def test_forced_fallback_isolation():
         (78.4850, 17.3870),
         (78.4850, 17.3850)
     ]
-    profile = await build_environmental_profile(polygon, None, season="kharif")
+    manual_soil = {"ph": 6.8, "organic_carbon": 12.0}
+    profile = await build_environmental_profile(polygon, None, season="kharif", manual_soil=manual_soil)
     vector = get_feature_pipeline().extract_feature_vector(profile)
 
     registry = get_model_registry()

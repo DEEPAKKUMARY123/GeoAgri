@@ -71,12 +71,34 @@ async def fetch_soil_data(centroid: tuple[float, float], manual_soil: dict | Non
                         "texture_sand_pct": round(sand_raw / 10.0, 1) if sand_raw else 45.0,
                         "texture_silt_pct": round(silt_raw / 10.0, 1) if silt_raw else 30.0,
                     }
-                    CACHE_SOIL[cache_key] = soil_base.copy()
-        except Exception:
+        except Exception as e:
+            if not (manual_soil and isinstance(manual_soil, dict)):
+                from app.core.config import get_settings
+                settings = get_settings()
+                if not settings.is_synthetic_allowed():
+                    raise RuntimeError(f"SoilGrids data fetch failed: {str(e)}") from e
             pass
 
     if soil_base is None:
-        # Deterministic fallback soil profile
+        # If user provided manual soil data, construct profile from user input
+        if manual_soil and isinstance(manual_soil, dict):
+            return {
+                "ph": float(manual_soil.get("ph") or 6.5),
+                "organic_carbon_g_kg": float(manual_soil.get("organic_carbon") or manual_soil.get("organic_carbon_g_kg") or 12.0),
+                "nitrogen_g_kg": float(manual_soil.get("nitrogen") or manual_soil.get("nitrogen_g_kg") or 0.25),
+                "phosphorus_ppm": float(manual_soil.get("phosphorus") or manual_soil.get("phosphorus_ppm") or 18.5),
+                "potassium_ppm": float(manual_soil.get("potassium") or manual_soil.get("potassium_ppm") or 145.0),
+                "texture_clay_pct": float(manual_soil.get("texture_clay_pct") or 25.0),
+                "texture_sand_pct": float(manual_soil.get("texture_sand_pct") or 45.0),
+                "texture_silt_pct": float(manual_soil.get("texture_silt_pct") or 30.0),
+            }
+
+        from app.core.config import get_settings
+        settings = get_settings()
+        if not settings.is_synthetic_allowed():
+            raise RuntimeError("Synthetic soil data requested, but ALLOW_SYNTHETIC_DATA is false.")
+
+        # Deterministic fallback soil profile (only reachable when ALLOW_SYNTHETIC_DATA=true)
         seed = int((abs(lat) * 800 + abs(lon) * 80) % 10000)
         rng = np.random.RandomState(seed)
 

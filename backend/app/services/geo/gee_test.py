@@ -5,14 +5,23 @@ Checks if GEE credentials exist or gracefully falls back to mock mode.
 
 import os
 import sys
+from pathlib import Path
 from dotenv import load_dotenv
+
+# Ensure backend root is on sys.path if run directly
+BACKEND_ROOT = str(Path(__file__).resolve().parents[3])
+if BACKEND_ROOT not in sys.path:
+    sys.path.insert(0, BACKEND_ROOT)
 
 load_dotenv()
 
+from app.core.config import get_settings
+
 def test_gee_connection() -> dict:
-    service_account = os.getenv("GEE_SERVICE_ACCOUNT", "")
-    key_path = os.getenv("GEE_PRIVATE_KEY_PATH", "")
-    mock_fallback = os.getenv("GEE_MOCK_FALLBACK", "true").lower() == "true"
+    settings = get_settings()
+    service_account = settings.GEE_SERVICE_ACCOUNT
+    key_path = settings.GEE_PRIVATE_KEY_PATH
+    mock_fallback = settings.GEE_MOCK_FALLBACK and settings.is_synthetic_allowed()
 
     if not service_account or not key_path or not os.path.exists(key_path):
         if mock_fallback:
@@ -22,8 +31,8 @@ def test_gee_connection() -> dict:
             }
         else:
             return {
-                "status": "error",
-                "message": "GEE credentials missing and fallback disabled."
+                "status": "unconfigured",
+                "message": "GEE credentials not configured or key file missing (mock fallback disabled)."
             }
 
     try:

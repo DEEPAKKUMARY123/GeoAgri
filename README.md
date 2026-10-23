@@ -248,6 +248,25 @@ $$\text{Total Production} = \left(0.75 \times Y_{\text{main}} \times (1 + \Delta
 
 ---
 
+## 🚧 0.7-Acre Land Check (Roads, Buildings, Forest, Terrain)
+
+Before any crop is ranked, the whole **0.7-acre area** (a circle of ≈30 m radius) around the selected point is checked (`backend/app/services/geo/area_check.py`). The land is **Not Suitable** (score 0, no crops) if the area contains:
+
+| Condition | Source (global, public, no account) |
+| :--- | :--- |
+| Any road or building | ESA WorldCover 10 m built-up pixel, or OpenStreetMap road / railway / runway / building within 30 m (farm tracks and footpaths don't count) |
+| Forest | Tree cover over 50% of the area, or OSM `landuse=forest` / `natural=wood` |
+| Snow or ice | Any snow/ice pixel |
+| Mountain / steep terrain | Copernicus DEM GLO-30: mean slope > 15° or elevation > 4,000 m |
+| Water, wetland, mangrove, bare desert/rock, tundra | More than 50% of the area, or open sea |
+| Settlements, industry, quarries, landfills, cemeteries, military land, national parks, nature reserves | OpenStreetMap polygons containing the point |
+
+The three sources are read in parallel with the profile build. A source that is unreachable (the public Overpass server is often busy) is skipped and listed in `area_check.warnings`; it never blocks a field on its own. The response field `area_check` lists the reasons, the land-cover percentages, slope and elevation. Set `AREA_CHECK_ACRES`, `OVERPASS_URL` (comma-separated list) or `OVERPASS_TIMEOUT_S` to tune it.
+
+## 🌳 Agroforestry Recommendations
+
+`agroforestry_trees` ranks **#1, #2, #3** trees to grow with the crops (boundary rows, alley cropping, scattered field trees, oasis or multi-storey systems) from 17 species, for example Moringa, Gliricidia, Leucaena, Neem, Faidherbia, Poplar, Date Palm, Walnut and Khejri. Trees are perennial, so they are matched to the location's **long-term yearly** climate (NASA POWER climatology: annual mean temperature, annual rainfall, coldest month) and topsoil pH, not the seasonal crop weather. Frost-sensitive trees are penalised where the coldest month is below 5 °C. Ranges are approximate tolerances summarised from FAO Ecocrop and the ICRAF Agroforestree database, so treat them as a first screening.
+
 ## 📁 Project Structure
 
 ```

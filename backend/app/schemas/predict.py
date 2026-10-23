@@ -55,6 +55,7 @@ class RecommendedCrop(BaseModel):
     data_confidence: Literal["high", "medium", "low"]
     regional_agronomic_prior: float = 1.0
     intercrop_data_available: bool = True
+    rank: Optional[int] = None  # 1 = best main crop
 
 class FieldSummary(BaseModel):
     area_ha: float
@@ -127,6 +128,38 @@ class IntercropSummary(BaseModel):
     estimated_production_boost_t: float
     disclaimer: str = "Intercrop yield boost is an estimate dependent on field management practices."
 
+class AreaTerrain(BaseModel):
+    mean_slope_deg: float
+    max_elevation_m: float
+    mean_elevation_m: float
+
+class AreaCheck(BaseModel):
+    """0.7-acre land check around the selected point (roads, buildings, forest, terrain, ...)."""
+    is_agricultural: Optional[bool]
+    reasons: list[str]
+    composition: dict[str, float]
+    terrain: Optional[AreaTerrain] = None
+    osm_features: list[str] = []
+    area_acres: float
+    radius_m: float
+    sources: list[str]
+    warnings: list[str] = []
+
+class AgroforestryTree(BaseModel):
+    rank: int
+    tree_id: str
+    name: str
+    scientific_name: str
+    system: str
+    benefits: str
+    suitability_score: float
+    notes: list[str] = []
+
+class AgroforestryClimate(BaseModel):
+    annual_temp_mean_c: float
+    annual_rainfall_mm: float
+    coldest_month_temp_c: Optional[float] = None
+
 class ModelStatus(BaseModel):
     model_a: Literal["ok", "fallback"]
     model_b: Literal["ok", "fallback"]
@@ -146,3 +179,6 @@ class FullReportResponse(BaseModel):
     climate_risk_summary: ClimateRiskSummary
     intercrop_summary: IntercropSummary
     model_status: ModelStatus
+    area_check: Optional[AreaCheck] = None
+    agroforestry_trees: list[AgroforestryTree] = []
+    agroforestry_climate: Optional[AgroforestryClimate] = None

@@ -29,3 +29,4 @@ pystac-client>=0.7.0
 planetary-computer>=1.0.0
 owslib>=0.29.0
 cachetools>=5.3.0
+mapbox-vector-tile>=2.0.0

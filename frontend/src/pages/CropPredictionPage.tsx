@@ -282,13 +282,26 @@ export const CropPredictionPage: React.FC = () => {
                     />
                   ))}
                 </div>
-                {areaCheck && (
-                  <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)', margin: '12px 0 0 0' }}>
-                    ✅ {areaCheck.area_acres}-acre land check passed (no roads, buildings, forest, snow or steep slopes)
-                    {areaSummary ? ` · ${areaSummary}` : ''}
-                    {areaCheck.warnings.length > 0 ? ` · Note: ${areaCheck.warnings.join(' ')}` : ''}
-                  </p>
-                )}
+                {areaCheck && (() => {
+                  // Say exactly what was checked: a source that could not be read is not a "pass".
+                  const src = areaCheck.sources || [];
+                  const checks = [
+                    { label: 'land cover (buildings, forest, snow, water)', ok: src.some(x => x.startsWith('ESA WorldCover')) },
+                    { label: 'slope & elevation', ok: src.some(x => x.startsWith('Copernicus DEM')) },
+                    { label: 'roads & buildings map', ok: src.some(x => x.startsWith('OpenStreetMap')) },
+                  ];
+                  const missing = checks.filter(c => !c.ok);
+                  return (
+                    <p style={{ fontSize: '0.8rem', color: missing.length ? '#f59e0b' : 'var(--text-muted)', margin: '12px 0 0 0' }}>
+                      {missing.length === 0
+                        ? <>✅ {areaCheck.area_acres}-acre land check passed: no roads, buildings, forest, snow or steep slopes</>
+                        : <>⚠️ {areaCheck.area_acres}-acre land check only partly done: nothing blocking was found, but {missing.map(c => c.label).join(' and ')} could not be checked</>}
+                      {areaSummary ? ` · ${areaSummary}` : ''}
+                      {src.length > 0 ? ` · Checked with: ${src.join(', ')}` : ''}
+                      {areaCheck.warnings.length > 0 ? ` · ${areaCheck.warnings.join(' ')}` : ''}
+                    </p>
+                  );
+                })()}
               </section>
 
 

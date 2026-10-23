@@ -19,7 +19,8 @@ area is NOT farmable if it contains:
 All sources are global, public and need no account:
   ESA WorldCover v200 10 m  (Cloud-Optimized GeoTIFFs on AWS)
   Copernicus DEM GLO-30     (Cloud-Optimized GeoTIFFs on AWS)
-  OpenStreetMap via the Overpass API
+  OpenStreetMap via OpenFreeMap vector tiles (fast CDN, ~0.5 s), with the
+                            Overpass API as a backup (often overloaded: 30 s+)
 They are read in parallel. A source that is unreachable is skipped and
 reported in `warnings`; it never blocks a field on its own.
 """
@@ -32,9 +33,12 @@ from collections import OrderedDict
 from concurrent.futures import ThreadPoolExecutor
 from typing import Any
 
+import mapbox_vector_tile
 import numpy as np
 import rasterio
 import requests
+from shapely.affinity import scale as scale_geom, translate
+from shapely.geometry import Point, shape
 from rasterio.transform import rowcol
 from rasterio.windows import Window
 
@@ -98,7 +102,29 @@ OSM_AREA_REASONS = {
     "amenity": {"grave_yard": "Cemetery"},
 }
 
+# OpenStreetMap as vector tiles (OpenMapTiles schema) from OpenFreeMap: free, no key
+OPENFREEMAP_TILEJSON = os.getenv("OPENFREEMAP_TILEJSON", "https://tiles.openfreemap.org/planet")
+TILE_ZOOM = 14            # most detailed level: every road and building
+TILE_TIMEOUT_S = 10
+ROAD_CLASSES = {"motorway", "trunk", "primary", "secondary", "tertiary", "minor", "service",
+                "busway", "raceway", "bus_guideway"}       # not track / path (farm access)
+RAIL_CLASSES = {"rail", "transit"}
+TILE_AREA_REASONS = {     # layer -> class -> reason (polygon containing the point)
+    "landuse": {
+        "residential": "Residential area", "commercial": "Commercial area", "retail": "Commercial area",
+        "industrial": "Industrial area", "military": "Military area", "quarry": "Quarry / mine",
+        "cemetery": "Cemetery", "railway": "Railway land", "garages": "Built-up area",
+        "hospital": "Built-up area", "school": "Built-up area", "college": "Built-up area",
+        "university": "Built-up area", "stadium": "Built-up area", "zoo": "Built-up area",
+    },
+    "landcover": {"wood": "Forest", "ice": "Snow / ice (glacier)", "wetland": "Wetland",
+                  "sand": "Sand / desert", "rock": "Bare rock"},
+    "park": {"national_park": "National park (protected)", "nature_reserve": "Nature reserve (protected)",
+             "protected_area": "Protected area"},
+}
+
 _executor = ThreadPoolExecutor(max_workers=8)
+_tile_url_cache: dict[str, Any] = {}
 _cache: "OrderedDict[tuple, dict]" = OrderedDict()
 _cache_lock = threading.Lock()
 _CACHE_MAX = 2048
@@ -256,8 +282,95 @@ def osm_reasons(elements: list[dict]) -> list[tuple[str, str]]:
     return unique
 
 
+def _tile_url_template() -> str:
+    """Current OpenFreeMap tile URL (the TileJSON points at the latest planet build)."""
+    import time
+    cached = _tile_url_cache.get("tiles")
+    if cached and time.time() - cached[1] < 6 * 3600:
+        return cached[0]
+    tj = requests.get(OPENFREEMAP_TILEJSON, timeout=TILE_TIMEOUT_S,
+                      headers={"User-Agent": get_settings().HTTP_USER_AGENT}).json()
+    url = tj["tiles"][0]
+    _tile_url_cache["tiles"] = (url, time.time())
+    return url
+
+
+def vector_tile_check(lat: float, lon: float, radius_m: float = AREA_RADIUS_M) -> dict:
+    """
+    OpenStreetMap check from OpenFreeMap vector tiles. Raises on network errors.
+    Roads (not farm tracks), railways, runways and buildings touching the
+    circle, and settlement / forest / water / protected polygons containing
+    the point, rule the area out.
+    """
+    n = 2 ** TILE_ZOOM
+    # Point in global tile-pixel units at TILE_ZOOM (4096 units per tile)
+    gx = (lon + 180.0) / 360.0 * n * 4096
+    gy = (1 - math.asinh(math.tan(math.radians(lat))) / math.pi) / 2 * n * 4096
+    tile_m = 40075016.686 * math.cos(math.radians(lat)) / n
+    r = radius_m * 4096 / tile_m
+    circle = Point(gx, gy).buffer(r, 32)
+    pt = Point(gx, gy)
+
+    template = _tile_url_template()
+    found: list[tuple[str, str]] = []
+    for tx in range(int((gx - r) // 4096), int((gx + r) // 4096) + 1):
+        for ty in range(int((gy - r) // 4096), int((gy + r) // 4096) + 1):
+            resp = requests.get(template.format(z=TILE_ZOOM, x=tx % n, y=ty), timeout=TILE_TIMEOUT_S,
+                                headers={"User-Agent": get_settings().HTTP_USER_AGENT})
+            if resp.status_code == 204 or not resp.content:
+                continue  # empty tile (open sea / nothing mapped)
+            resp.raise_for_status()
+            layers = mapbox_vector_tile.decode(resp.content, default_options={"y_coord_down": True})
+            for layer_name, layer in layers.items():
+                scale = 4096 / layer.get("extent", 4096)
+                for feat in layer["features"]:
+                    cls = feat["properties"].get("class")
+                    try:
+                        g = shape(feat["geometry"])
+                        if scale != 1:
+                            g = scale_geom(g, scale, scale, origin=(0, 0))
+                        g = translate(g, tx * 4096, ty * 4096)  # tile-local -> global tile pixels
+                    except Exception:
+                        continue
+                    if layer_name == "transportation" and cls in ROAD_CLASSES and g.intersects(circle):
+                        found.append((f"Road within the {AREA_LABEL}", f"highway={cls}"))
+                    elif layer_name == "transportation" and cls in RAIL_CLASSES and g.intersects(circle):
+                        found.append((f"Railway within the {AREA_LABEL}", f"railway={cls}"))
+                    elif layer_name == "aeroway" and cls in ("runway", "taxiway", "apron") and g.intersects(circle):
+                        found.append(("Airport", f"aeroway={cls}"))
+                    elif layer_name == "building" and g.intersects(circle):
+                        found.append((f"Building within the {AREA_LABEL}", "building"))
+                    elif layer_name == "water" and g.geom_type.endswith("Polygon") and g.contains(pt):
+                        found.append(("Water body", f"water={cls or 'water'}"))
+                    elif layer_name in TILE_AREA_REASONS and cls in TILE_AREA_REASONS[layer_name] \
+                            and g.geom_type.endswith("Polygon") and g.contains(pt):
+                        found.append((TILE_AREA_REASONS[layer_name][cls], f"{layer_name}={cls}"))
+
+    seen, unique = set(), []
+    for reason, tag in found:
+        if reason not in seen:
+            seen.add(reason)
+            unique.append((reason, tag))
+    return {"reasons": [r for r, _ in unique], "features": [t for _, t in unique], "source": "OpenStreetMap (OpenFreeMap tiles)"}
+
+
 def osm_check(lat: float, lon: float) -> dict:
-    """Never raises: {"reasons": [...], "features": [...]} or {"warning": "..."}."""
+    """
+    Never raises: {"reasons": [...], "features": [...], "source": ...} or {"warning": "..."}.
+    Fast vector tiles first; the Overpass API only if the tiles can't be read.
+    """
+    try:
+        return vector_tile_check(lat, lon)
+    except Exception as tile_error:
+        result = overpass_check(lat, lon)
+        if "warning" in result:
+            result["warning"] = (f"OpenStreetMap road/building check unavailable (tiles: {type(tile_error).__name__}; "
+                                 f"{result['warning'].split('(')[-1].rstrip('.').rstrip(')')})")
+        return result
+
+
+def overpass_check(lat: float, lon: float) -> dict:
+    """Backup OSM source (Overpass API). Never raises."""
     error = None
     for url in OVERPASS_URLS:
         try:
@@ -267,7 +380,8 @@ def osm_check(lat: float, lon: float) -> dict:
             )
             resp.raise_for_status()
             found = osm_reasons(resp.json().get("elements", []))
-            return {"reasons": [r for r, _ in found], "features": [t for _, t in found]}
+            return {"reasons": [r for r, _ in found], "features": [t for _, t in found],
+                    "source": "OpenStreetMap (Overpass)"}
         except Exception as e:  # timeout, 429/502 "at capacity", bad JSON...
             error = e
     return {"warning": f"OpenStreetMap road/building check unavailable ({type(error).__name__})."}
@@ -334,7 +448,7 @@ def check_area(lat: float, lon: float) -> dict[str, Any]:
     if osm.get("warning"):
         warnings.append(osm["warning"])
     else:
-        sources.append("OpenStreetMap")
+        sources.append(osm.get("source", "OpenStreetMap"))
         reasons += [r for r in osm["reasons"] if r not in reasons]
         osm_features = osm["features"]
 

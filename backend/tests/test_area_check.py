@@ -166,3 +166,66 @@ def test_farmable_area_ranks_crops(offline_api, monkeypatch):
     crops = body["recommended_crops"]
     assert crops and [c["rank"] for c in crops[:3]] == [1, 2, 3]
     assert body["area_check"]["is_agricultural"] is True
+
+
+# ------------------------------------------------- OpenStreetMap vector tiles
+def _fake_tile_server(monkeypatch, layers_for_tile):
+    """Serve encoded vector tiles from a dict {(x, y): [layer dicts]}."""
+    import mapbox_vector_tile
+
+    class Resp:
+        def __init__(self, content):
+            self.content, self.status_code = content, 200 if content else 204
+        def raise_for_status(self):
+            pass
+
+    def fake_get(url, timeout=None, headers=None):
+        z, x, y = (int(v) for v in url.rsplit(".", 1)[0].split("/")[-3:])
+        layers = layers_for_tile.get((x, y))
+        return Resp(mapbox_vector_tile.encode(layers, default_options={"y_coord_down": True}) if layers else b"")
+
+    monkeypatch.setattr(area_check, "_tile_url_template", lambda: "https://tiles.test/{z}/{x}/{y}.pbf")
+    monkeypatch.setattr(area_check.requests, "get", fake_get)
+
+
+def _tile_and_offset(lat, lon):
+    import math
+    n = 2 ** area_check.TILE_ZOOM
+    gx = (lon + 180.0) / 360.0 * n * 4096
+    gy = (1 - math.asinh(math.tan(math.radians(lat))) / math.pi) / 2 * n * 4096
+    tile_m = 40075016.686 * math.cos(math.radians(lat)) / n
+    return int(gx // 4096), int(gy // 4096), gx % 4096, gy % 4096, 4096 / tile_m
+
+
+@pytest.mark.parametrize("road_offset_m,expect_road", [(10, True), (25, True), (45, False), (80, False)])
+def test_road_distance_in_tiles(monkeypatch, road_offset_m, expect_road):
+    lat, lon = 30.7522, 75.4989
+    tx, ty, px, py, units_per_m = _tile_and_offset(lat, lon)
+    x_road = px + road_offset_m * units_per_m          # a north-south road east of the point
+    road = {"name": "transportation", "features": [{
+        "geometry": f"LINESTRING ({x_road} {py - 300}, {x_road} {py + 300})",
+        "properties": {"class": "primary"}}]}
+    _fake_tile_server(monkeypatch, {(tx, ty): [road]})
+    res = area_check.vector_tile_check(lat, lon)
+    assert (res["reasons"] == ["Road within the 0.7-acre area"]) is expect_road
+
+
+def test_farm_track_and_forest_polygon_in_tiles(monkeypatch):
+    lat, lon = 30.7522, 75.4989
+    tx, ty, px, py, _ = _tile_and_offset(lat, lon)
+    track = {"name": "transportation", "features": [{
+        "geometry": f"LINESTRING ({px} {py - 200}, {px} {py + 200})", "properties": {"class": "track"}}]}
+    wood = {"name": "landcover", "features": [{
+        "geometry": f"POLYGON (({px-100} {py-100}, {px+100} {py-100}, {px+100} {py+100}, {px-100} {py+100}, {px-100} {py-100}))",
+        "properties": {"class": "wood"}}]}
+    _fake_tile_server(monkeypatch, {(tx, ty): [track, wood]})
+    assert area_check.vector_tile_check(lat, lon)["reasons"] == ["Forest"]   # the track is not a road
+
+
+def test_tiles_down_falls_back_to_overpass(monkeypatch):
+    def boom(*a, **k):
+        raise TimeoutError("tiles down")
+    monkeypatch.setattr(area_check, "vector_tile_check", boom)
+    monkeypatch.setattr(area_check, "overpass_check", lambda lat, lon: {
+        "reasons": [], "features": [], "source": "OpenStreetMap (Overpass)"})
+    assert area_check.osm_check(30.75, 75.50)["source"] == "OpenStreetMap (Overpass)"

@@ -261,7 +261,7 @@ Before any crop is ranked, the whole **0.7-acre area** (a circle of ≈30 m radi
 | Water, wetland, mangrove, bare desert/rock, tundra | More than 50% of the area, or open sea |
 | Settlements, industry, quarries, landfills, cemeteries, military land, national parks, nature reserves | OpenStreetMap polygons containing the point |
 
-The three sources are read in parallel with the profile build. A source that is unreachable (the public Overpass server is often busy) is skipped and listed in `area_check.warnings`; it never blocks a field on its own. The response field `area_check` lists the reasons, the land-cover percentages, slope and elevation. Set `AREA_CHECK_ACRES`, `OVERPASS_URL` (comma-separated list) or `OVERPASS_TIMEOUT_S` to tune it.
+OpenStreetMap is read as vector tiles from [OpenFreeMap](https://openfreemap.org) (free, no key, ~0.5 s per request); the public Overpass API is only a backup because it is often overloaded (30 s+ or "502 at capacity"). The three sources are read in parallel with the profile build. A source that is unreachable is skipped and listed in `area_check.warnings` and the crop page says which checks could not be done; a missing source never blocks a field on its own. The response field `area_check` lists the reasons, the land-cover percentages, slope and elevation. Set `AREA_CHECK_ACRES`, `OPENFREEMAP_TILEJSON`, `OVERPASS_URL` (comma-separated list) or `OVERPASS_TIMEOUT_S` to tune it.
 
 ## 📁 Project Structure
 

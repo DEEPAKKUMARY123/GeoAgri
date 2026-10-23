@@ -18,7 +18,8 @@ import {
   CheckCircle,
   Leaf,
   Compass,
-  AlertTriangle
+  AlertTriangle,
+  Trees
 } from 'lucide-react';
 import {
   BarChart,
@@ -51,6 +52,17 @@ export const CropPredictionPage: React.FC = () => {
   const risk = report?.climate_risk_summary || { overall_risk_level: "Low", drought_risk_score: 6, heat_risk_score: 5, note: "Low climatic risk profile during active growing window." };
   const env = report?.environment || { ph: 5.92, organic_carbon_g_kg: 6.1, rainfall_mm: 1053, temp_mean_c: 23.1 };
   const sat = report?.satellite_features || { ndvi: 0.59, ndmi: 0.23 };
+
+  const areaCheck = report?.area_check;
+  const agroTrees = report?.agroforestry_trees || [];
+  const agroClimate = report?.agroforestry_climate;
+  const areaBlocked = areaCheck?.is_agricultural === false;
+  const areaSummary = areaCheck
+    ? [
+        Object.entries(areaCheck.composition || {}).slice(0, 3).map(([k, v]) => `${k} ${Math.round(v)}%`).join(', '),
+        areaCheck.terrain ? `slope ${areaCheck.terrain.mean_slope_deg}°, elevation ${areaCheck.terrain.max_elevation_m} m` : '',
+      ].filter(Boolean).join(' · ')
+    : '';
 
   const top5Crops = crops.slice(0, 5);
   const top10Crops = crops.slice(0, 10);
@@ -102,7 +114,7 @@ export const CropPredictionPage: React.FC = () => {
         </div>
       </div>
 
-      {crops.length === 0 ? (
+      {!report ? (
         <div className="glass-card" style={{ textAlign: 'center', padding: '48px 24px' }}>
           <Sprout size={48} style={{ color: '#10b981', margin: '0 auto 16px auto' }} />
           <h3 style={{ fontSize: '1.2rem', fontWeight: 600 }}>No Crop Predictions Yet</h3>
@@ -211,12 +223,19 @@ export const CropPredictionPage: React.FC = () => {
               }}>
                 <AlertTriangle size={52} style={{ color: '#ef4444', margin: '0 auto 16px auto' }} />
                 <h2 style={{ fontSize: '1.45rem', fontWeight: 800, color: 'var(--text-main)', marginBottom: '8px' }}>
-                  Cultivation Not Feasible: Non-Arable Zone Selected
+                  Cultivation Not Feasible: Non-Arable Land Selected
                 </h2>
-                <p style={{ fontSize: '0.95rem', color: 'var(--text-muted)', maxWidth: '680px', margin: '0 auto 16px auto', lineHeight: 1.6 }}>
-                  The selected coordinate (<strong>{centroidLat.toFixed(4)}°N, {centroidLon.toFixed(4)}°E</strong>) lies within an open water body or polar permafrost zone (<strong>{detectedLocation?.displayName || 'Non-Arable Terrestrial Zone'}</strong>).
-                  Because open water and ice shields lack soil lithology and experience sub-zero or aquatic environments, Land Suitability is <strong>0% (Not Suitable)</strong> and <strong>no crops can be planted here</strong>.
-                </p>
+                {areaBlocked ? (
+                  <p style={{ fontSize: '0.95rem', color: 'var(--text-muted)', maxWidth: '680px', margin: '0 auto 16px auto', lineHeight: 1.6 }}>
+                    The <strong>{areaCheck?.area_acres}-acre area</strong> (≈{Math.round(areaCheck?.radius_m || 30)} m around <strong>{centroidLat.toFixed(4)}°N, {centroidLon.toFixed(4)}°E</strong>) cannot be farmed, so Land Suitability is <strong>0% (Not Suitable)</strong> and <strong>no crops can be planted here</strong>.
+                    {areaSummary && <><br /><span style={{ fontSize: '0.85rem' }}>Inside the area: {areaSummary}</span></>}
+                  </p>
+                ) : (
+                  <p style={{ fontSize: '0.95rem', color: 'var(--text-muted)', maxWidth: '680px', margin: '0 auto 16px auto', lineHeight: 1.6 }}>
+                    The selected coordinate (<strong>{centroidLat.toFixed(4)}°N, {centroidLon.toFixed(4)}°E</strong>) lies within an open water body or polar permafrost zone (<strong>{detectedLocation?.displayName || 'Non-Arable Terrestrial Zone'}</strong>).
+                    Because open water and ice shields lack soil lithology and experience sub-zero or aquatic environments, Land Suitability is <strong>0% (Not Suitable)</strong> and <strong>no crops can be planted here</strong>.
+                  </p>
+                )}
                 <div style={{
                   display: 'inline-block',
                   background: 'rgba(239, 68, 68, 0.12)',
@@ -261,12 +280,55 @@ export const CropPredictionPage: React.FC = () => {
                     <CropRecommendationCard
                       key={crop.crop_id || index}
                       crop={crop}
-                      rank={index + 1}
+                      rank={crop.rank ?? index + 1}
                       farmArea={farmArea}
                     />
                   ))}
                 </div>
+                {areaCheck && (
+                  <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)', margin: '12px 0 0 0' }}>
+                    ✅ {areaCheck.area_acres}-acre land check passed (no roads, buildings, forest, snow or steep slopes)
+                    {areaSummary ? ` · ${areaSummary}` : ''}
+                    {areaCheck.warnings.length > 0 ? ` · Note: ${areaCheck.warnings.join(' ')}` : ''}
+                  </p>
+                )}
               </section>
+
+              {/* SECTION 2b — AGROFORESTRY: TREES TO GROW WITH THE CROPS */}
+              {agroTrees.length > 0 && (
+                <section className="crop-section">
+                  <div className="section-header">
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      <Trees size={20} style={{ color: '#22c55e' }} />
+                      <h2 className="section-title">Agroforestry: Trees to Grow With Your Crops</h2>
+                    </div>
+                    {agroClimate && (
+                      <span className="badge badge-moderate">
+                        Yearly climate: {agroClimate.annual_temp_mean_c}°C · {Math.round(agroClimate.annual_rainfall_mm)} mm rain
+                      </span>
+                    )}
+                  </div>
+                  <div className="top5-cards-grid">
+                    {agroTrees.map((tree) => (
+                      <div key={tree.tree_id} className="glass-card" style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '8px' }}>
+                          <span className="badge badge-high">#{tree.rank}</span>
+                          <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
+                            Match {Math.round(tree.suitability_score * 100)}%
+                          </span>
+                        </div>
+                        <h3 style={{ margin: 0, fontSize: '1.05rem', fontWeight: 700, color: 'var(--text-main)' }}>{tree.name}</h3>
+                        <em style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>{tree.scientific_name}</em>
+                        <p style={{ margin: 0, fontSize: '0.85rem', color: 'var(--text-main)' }}><strong>How:</strong> {tree.system}</p>
+                        <p style={{ margin: 0, fontSize: '0.85rem', color: 'var(--text-muted)' }}>{tree.benefits}</p>
+                        {tree.notes.length > 0 && (
+                          <p style={{ margin: 0, fontSize: '0.78rem', color: '#f59e0b' }}>⚠️ {tree.notes.join('; ')}</p>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                </section>
+              )}
 
           {/* SECTION 3 — TOP 10 YIELD PREDICTIONS */}
           <section className="crop-section">

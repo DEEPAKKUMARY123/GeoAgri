@@ -112,6 +112,7 @@ export interface FullReportResponse {
     rationale: string;
     data_confidence: "high" | "medium" | "low";
     intercrop_data_available?: boolean;
+    rank?: number;
   }>;
   yield_summary: {
     top_recommended_crop: string;
@@ -150,6 +151,34 @@ export interface FullReportResponse {
     model_d: "ok" | "fallback";
     model_e: "ok" | "fallback";
   };
+  /** 0.7-acre land check around the point: roads, buildings, forest, snow, slope, water... */
+  area_check?: {
+    is_agricultural: boolean | null;
+    reasons: string[];
+    composition: Record<string, number>;
+    terrain?: { mean_slope_deg: number; max_elevation_m: number; mean_elevation_m: number } | null;
+    osm_features: string[];
+    area_acres: number;
+    radius_m: number;
+    sources: string[];
+    warnings: string[];
+  } | null;
+  /** Trees to grow with the crops, ranked 1, 2, 3 for the local yearly climate. */
+  agroforestry_trees?: Array<{
+    rank: number;
+    tree_id: string;
+    name: string;
+    scientific_name: string;
+    system: string;
+    benefits: string;
+    suitability_score: number;
+    notes: string[];
+  }>;
+  agroforestry_climate?: {
+    annual_temp_mean_c: number;
+    annual_rainfall_mm: number;
+    coldest_month_temp_c?: number | null;
+  } | null;
 }
 
 export async function fetchFullReport(payload: PredictRequestPayload): Promise<FullReportResponse> {

@@ -263,10 +263,6 @@ Before any crop is ranked, the whole **0.7-acre area** (a circle of ≈30 m radi
 
 The three sources are read in parallel with the profile build. A source that is unreachable (the public Overpass server is often busy) is skipped and listed in `area_check.warnings`; it never blocks a field on its own. The response field `area_check` lists the reasons, the land-cover percentages, slope and elevation. Set `AREA_CHECK_ACRES`, `OVERPASS_URL` (comma-separated list) or `OVERPASS_TIMEOUT_S` to tune it.
 
-## 🌳 Agroforestry Recommendations
-
-`agroforestry_trees` ranks **#1, #2, #3** trees to grow with the crops (boundary rows, alley cropping, scattered field trees, oasis or multi-storey systems) from 17 species, for example Moringa, Gliricidia, Leucaena, Neem, Faidherbia, Poplar, Date Palm, Walnut and Khejri. Trees are perennial, so they are matched to the location's **long-term yearly** climate (NASA POWER climatology: annual mean temperature, annual rainfall, coldest month) and topsoil pH, not the seasonal crop weather. Frost-sensitive trees are penalised where the coldest month is below 5 °C. Ranges are approximate tolerances summarised from FAO Ecocrop and the ICRAF Agroforestree database, so treat them as a first screening.
-
 ## 📁 Project Structure
 
 ```

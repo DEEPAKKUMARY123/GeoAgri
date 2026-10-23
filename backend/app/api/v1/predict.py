@@ -11,13 +11,11 @@ from app.schemas.predict import (
     PredictRequest, FullReportResponse, QuantileValue, IntercropOption,
     RecommendedCrop, FieldSummary, LandSuitability, EnvironmentSummary,
     SatelliteFeatures, YieldSummary, ProductionSummary, IrrigationSummary,
-    ClimateRiskSummary, IntercropSummary, ModelStatus, AreaCheck,
-    AgroforestryTree, AgroforestryClimate
+    ClimateRiskSummary, IntercropSummary, ModelStatus, AreaCheck
 )
 from app.services.features.profile import build_environmental_profile
 from app.services.geo.area import compute_polygon_area_ha
 from app.services.geo.area_check import check_area
-from app.services.crops.agroforestry import fetch_annual_climate, rank_agroforestry_trees
 from app.services.features.pipeline import get_feature_pipeline
 from app.models.registry import get_model_registry
 from app.services.fusion.engine import run_decision_fusion
@@ -29,19 +27,13 @@ async def generate_full_report(req: PredictRequest):
     try:
         manual_soil_dict = req.manual_soil.model_dump() if req.manual_soil else None
 
-        # 0. Centre of the field: the 0.7-acre land check and the yearly
-        #    climate for agroforestry run in parallel with the profile build.
+        # 0. Centre of the field: the 0.7-acre land check runs in parallel
+        #    with the profile build.
         centre = compute_polygon_area_ha(req.polygon, req.point)
         c_lat, c_lon = centre["centroid_lat"], centre["centroid_lon"]
 
-        async def annual_climate():
-            try:
-                return await fetch_annual_climate(c_lat, c_lon)
-            except Exception:
-                return None
-
         # 1. Build environmental profile
-        profile, area_result, climate = await asyncio.gather(
+        profile, area_result = await asyncio.gather(
             build_environmental_profile(
                 polygon_pts=req.polygon,
                 point_pt=req.point,
@@ -49,7 +41,6 @@ async def generate_full_report(req: PredictRequest):
                 manual_soil=manual_soil_dict
             ),
             asyncio.to_thread(check_area, c_lat, c_lon),
-            annual_climate(),
         )
 
         # 2. Extract 78-layer feature vector
@@ -131,11 +122,6 @@ async def generate_full_report(req: PredictRequest):
             # additional_production_t = main_crop_production_t * yield_boost_pct * companion_share_factor
             intercrop_boost_t = round(top_rec.expected_production_t.p50 * opt.yield_boost_pct * opt.companion_share_factor, 3)
 
-        # Agroforestry trees to grow alongside the crops (only on farmable land)
-        agro_trees = []
-        if not land_blocked and climate:
-            agro_trees = [AgroforestryTree(**t) for t in rank_agroforestry_trees(climate, profile["soil"].get("ph"))]
-
         # Build response schema object
         w = profile["weather"]
         s = profile["soil"]
@@ -210,9 +196,7 @@ async def generate_full_report(req: PredictRequest):
                 disclaimer="Intercrop yield boost is an estimate dependent on field management practices."
             ),
             model_status=ModelStatus(**model_outputs["model_status"]),
-            area_check=AreaCheck(**area_result),
-            agroforestry_trees=agro_trees,
-            agroforestry_climate=AgroforestryClimate(**climate) if climate else None
+            area_check=AreaCheck(**area_result)
         )
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Prediction pipeline error: {str(e)}")

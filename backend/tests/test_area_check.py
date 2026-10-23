@@ -1,6 +1,6 @@
 """
-0.7-acre area land check (roads, buildings, forest, snow, mountains, ...)
-and agroforestry tree ranking. All offline: no network calls.
+0.7-acre area land check (roads, buildings, forest, snow, mountains, ...).
+All offline: no network calls.
 """
 import numpy as np
 import pytest
@@ -9,7 +9,6 @@ from rasterio.transform import from_origin
 from fastapi.testclient import TestClient
 
 from app.services.geo import area_check
-from app.services.crops import agroforestry
 
 PIX = 10 / 111320.0
 ORIGIN_LON, ORIGIN_LAT = 31.60, 30.80
@@ -124,31 +123,6 @@ def test_unreachable_sources_never_block(monkeypatch):
     assert len(res["warnings"]) == 3
 
 
-# --------------------------------------------------------------- agroforestry
-def names(trees):
-    return [t["tree_id"] for t in trees]
-
-
-def test_agroforestry_ranks_are_1_2_3():
-    trees = agroforestry.rank_agroforestry_trees(
-        {"annual_temp_mean_c": 25.3, "annual_rainfall_mm": 660, "coldest_month_temp_c": 12.5}, 8.0)
-    assert [t["rank"] for t in trees] == [1, 2, 3]
-    assert trees[0]["suitability_score"] >= trees[1]["suitability_score"] >= trees[2]["suitability_score"]
-
-
-def test_desert_oasis_prefers_date_palm():
-    trees = agroforestry.rank_agroforestry_trees(
-        {"annual_temp_mean_c": 22.0, "annual_rainfall_mm": 20, "coldest_month_temp_c": 13.0}, 8.2)
-    assert trees[0]["tree_id"] == "date_palm"
-
-
-def test_cold_climate_excludes_frost_sensitive_trees():
-    trees = agroforestry.rank_agroforestry_trees(
-        {"annual_temp_mean_c": 10.0, "annual_rainfall_mm": 800, "coldest_month_temp_c": -3.0}, 6.5)
-    assert trees and set(names(trees)) <= {"walnut", "poplar", "paulownia", "grevillea", "alder"}
-    assert "coconut" not in names(trees) and "moringa" not in names(trees)
-
-
 # ------------------------------------------------------------------ API wiring
 @pytest.fixture
 def offline_api(monkeypatch):
@@ -157,11 +131,7 @@ def offline_api(monkeypatch):
     monkeypatch.setenv("ALLOW_SYNTHETIC_DATA", "true")
     monkeypatch.setenv("GEE_MOCK_FALLBACK", "true")
     get_settings.cache_clear()
-
-    async def climate(lat, lon):
-        return {"annual_temp_mean_c": 25.3, "annual_rainfall_mm": 660.0, "coldest_month_temp_c": 12.5}
     from app.api.v1 import predict
-    monkeypatch.setattr(predict, "fetch_annual_climate", climate)
     from app.main import app
     yield TestClient(app), predict
     get_settings.cache_clear()
@@ -184,11 +154,10 @@ def test_blocked_area_returns_no_crops(offline_api, monkeypatch):
     assert body["land_suitability"]["score"] == 0.0
     assert body["land_suitability"]["limiting_factors"] == reasons
     assert body["recommended_crops"] == []
-    assert body["agroforestry_trees"] == []
     assert body["area_check"]["reasons"] == reasons
 
 
-def test_farmable_area_ranks_crops_and_trees(offline_api, monkeypatch):
+def test_farmable_area_ranks_crops(offline_api, monkeypatch):
     client, predict = offline_api
     monkeypatch.setattr(predict, "check_area", lambda lat, lon: area_result(True))
     r = client.post("/api/v1/predict/full-report", json={"point": [75.4987, 30.7512], "season": "kharif"})
@@ -196,5 +165,4 @@ def test_farmable_area_ranks_crops_and_trees(offline_api, monkeypatch):
     body = r.json()
     crops = body["recommended_crops"]
     assert crops and [c["rank"] for c in crops[:3]] == [1, 2, 3]
-    assert [t["rank"] for t in body["agroforestry_trees"]] == [1, 2, 3]
     assert body["area_check"]["is_agricultural"] is True

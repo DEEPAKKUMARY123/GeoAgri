@@ -145,21 +145,6 @@ class AreaCheck(BaseModel):
     sources: list[str]
     warnings: list[str] = []
 
-class AgroforestryTree(BaseModel):
-    rank: int
-    tree_id: str
-    name: str
-    scientific_name: str
-    system: str
-    benefits: str
-    suitability_score: float
-    notes: list[str] = []
-
-class AgroforestryClimate(BaseModel):
-    annual_temp_mean_c: float
-    annual_rainfall_mm: float
-    coldest_month_temp_c: Optional[float] = None
-
 class ModelStatus(BaseModel):
     model_a: Literal["ok", "fallback"]
     model_b: Literal["ok", "fallback"]
@@ -180,5 +165,3 @@ class FullReportResponse(BaseModel):
     intercrop_summary: IntercropSummary
     model_status: ModelStatus
     area_check: Optional[AreaCheck] = None
-    agroforestry_trees: list[AgroforestryTree] = []
-    agroforestry_climate: Optional[AgroforestryClimate] = None

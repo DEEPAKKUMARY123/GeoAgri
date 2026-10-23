@@ -163,22 +163,6 @@ export interface FullReportResponse {
     sources: string[];
     warnings: string[];
   } | null;
-  /** Trees to grow with the crops, ranked 1, 2, 3 for the local yearly climate. */
-  agroforestry_trees?: Array<{
-    rank: number;
-    tree_id: string;
-    name: string;
-    scientific_name: string;
-    system: string;
-    benefits: string;
-    suitability_score: number;
-    notes: string[];
-  }>;
-  agroforestry_climate?: {
-    annual_temp_mean_c: number;
-    annual_rainfall_mm: number;
-    coldest_month_temp_c?: number | null;
-  } | null;
 }
 
 export async function fetchFullReport(payload: PredictRequestPayload): Promise<FullReportResponse> {

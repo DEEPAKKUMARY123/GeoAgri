@@ -18,8 +18,7 @@ import {
   CheckCircle,
   Leaf,
   Compass,
-  AlertTriangle,
-  Trees
+  AlertTriangle
 } from 'lucide-react';
 import {
   BarChart,
@@ -54,8 +53,6 @@ export const CropPredictionPage: React.FC = () => {
   const sat = report?.satellite_features || { ndvi: 0.59, ndmi: 0.23 };
 
   const areaCheck = report?.area_check;
-  const agroTrees = report?.agroforestry_trees || [];
-  const agroClimate = report?.agroforestry_climate;
   const areaBlocked = areaCheck?.is_agricultural === false;
   const areaSummary = areaCheck
     ? [
@@ -294,41 +291,6 @@ export const CropPredictionPage: React.FC = () => {
                 )}
               </section>
 
-              {/* SECTION 2b — AGROFORESTRY: TREES TO GROW WITH THE CROPS */}
-              {agroTrees.length > 0 && (
-                <section className="crop-section">
-                  <div className="section-header">
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                      <Trees size={20} style={{ color: '#22c55e' }} />
-                      <h2 className="section-title">Agroforestry: Trees to Grow With Your Crops</h2>
-                    </div>
-                    {agroClimate && (
-                      <span className="badge badge-moderate">
-                        Yearly climate: {agroClimate.annual_temp_mean_c}°C · {Math.round(agroClimate.annual_rainfall_mm)} mm rain
-                      </span>
-                    )}
-                  </div>
-                  <div className="top5-cards-grid">
-                    {agroTrees.map((tree) => (
-                      <div key={tree.tree_id} className="glass-card" style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '8px' }}>
-                          <span className="badge badge-high">#{tree.rank}</span>
-                          <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
-                            Match {Math.round(tree.suitability_score * 100)}%
-                          </span>
-                        </div>
-                        <h3 style={{ margin: 0, fontSize: '1.05rem', fontWeight: 700, color: 'var(--text-main)' }}>{tree.name}</h3>
-                        <em style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>{tree.scientific_name}</em>
-                        <p style={{ margin: 0, fontSize: '0.85rem', color: 'var(--text-main)' }}><strong>How:</strong> {tree.system}</p>
-                        <p style={{ margin: 0, fontSize: '0.85rem', color: 'var(--text-muted)' }}>{tree.benefits}</p>
-                        {tree.notes.length > 0 && (
-                          <p style={{ margin: 0, fontSize: '0.78rem', color: '#f59e0b' }}>⚠️ {tree.notes.join('; ')}</p>
-                        )}
-                      </div>
-                    ))}
-                  </div>
-                </section>
-              )}
 
           {/* SECTION 3 — TOP 10 YIELD PREDICTIONS */}
           <section className="crop-section">
